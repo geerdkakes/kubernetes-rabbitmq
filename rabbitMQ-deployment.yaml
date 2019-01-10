@@ -1,0 +1,125 @@
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    app: rabbitmq
+  name: rabbitmq
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rabbitmq
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+    spec:
+      initContainers:
+      - command:
+        - sh
+        - -c
+        - cp /configdata/* /etc/rabbitmq/
+        image: busybox
+        imagePullPolicy: IfNotPresent
+        name: rabbitmq-init
+        volumeMounts:
+        - mountPath: /configdata
+          name: rabbitmq-config
+        - mountPath: /etc/rabbitmq
+          name: etc
+      containers:
+      - image: rabbitmq:3.7.8
+        imagePullPolicy: IfNotPresent
+        name: rabbitmq
+        ports:
+        - name: http
+          protocol: TCP
+          containerPort: 15672
+        - name: stompws
+          protocol: TCP
+          containerPort: 15674
+        - name: amqp
+          protocol: TCP
+          containerPort: 5672
+        - name: mqtt
+          protocol: TCP
+          containerPort: 1883
+        resources:
+          limits:
+            cpu: 2000m
+            memory: 2048Mi
+          requests:
+            cpu: 2000m
+            memory: 2048Mi
+        env:
+          - name: vm_memory_high_watermark
+            value: 1536MiB
+          - name: RABBITMQ_DEFAULT_USER
+            value: admin
+          - name: RABBITMQ_DEFAULT_PASS
+            value: "Welkom01"
+        volumeMounts:
+        - name: etc
+          mountPath: /etc/rabbitmq
+      volumes:
+        - name: etc
+          emptyDir: {}
+        - name: rabbitmq-config
+          configMap:
+            name: rabbitmqconfig
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: rabbitmq
+  name: rabbitmq
+spec:
+  ports:
+  - name: http
+    port: 15672
+    protocol: TCP
+    targetPort: 15672
+  - name: stmopws
+    port: 15674
+    protocol: TCP
+    targetPort: 15674
+  - name: amqp
+    port: 5672
+    protocol: TCP
+    targetPort: 5672
+  - name: mqtt
+    port: 1883
+    protocol: TCP
+    targetPort: 1883
+  selector:
+    app: rabbitmq
+  sessionAffinity: None
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: rabbitmq
+  name: rabbitmq-nodeports
+spec:
+  ports:
+  - name: amqp
+    port: 31671
+    protocol: TCP
+    targetPort: 5672
+  - name: mqtt
+    port: 31883
+    protocol: TCP
+    targetPort: 1883
+  selector:
+    app: rabbitmq
+  sessionAffinity: None
+  type: NodePort
